@@ -2,7 +2,6 @@ import { useState } from 'react'
 
 type RepaymentType = 'equal-principal' | 'equal-payment'
 type LoanType = 'no-grace' | 'interest-only' | 'partial-grace'
-type TimelineView = 'principal-interest' | 'balance' | 'salary-ratio'
 
 interface RentalPropertyInfo {
   rentIncome: number
@@ -124,271 +123,6 @@ function formatNumber(amount: number): string {
   return new Intl.NumberFormat('zh-TW').format(Math.round(amount))
 }
 
-// Timeline Chart Component
-function TimelineChart({ 
-  schedule, 
-  monthlyPayment, 
-  view, 
-  monthlySalary,
-  secondSalary,
-  netRentalIncome,
-  totalMonths,
-  graceMonths,
-  loanType 
-}: { 
-  schedule: CalculationResult['schedule']
-  monthlyPayment: number
-  view: TimelineView
-  monthlySalary: number
-  secondSalary: number
-  netRentalIncome: number
-  totalMonths: number
-  graceMonths: number
-  loanType: LoanType
-}) {
-  const hasGrace = graceMonths > 0 && (loanType === 'interest-only' || loanType === 'partial-grace')
-  const displaySchedule = hasGrace && schedule.length < totalMonths
-    ? schedule
-    : schedule
-
-  const maxItems = Math.min(displaySchedule.length, totalMonths)
-  const step = maxItems > 120 ? Math.ceil(maxItems / 120) : 1
-  const sampled = displaySchedule.filter((_, i) => i % step === 0 || i === displaySchedule.length - 1)
-
-  if (view === 'salary-ratio') {
-    const totalIncome = monthlySalary + secondSalary + netRentalIncome
-    if (!totalIncome) return null
-
-    return (
-      <div className="w-full">
-        <svg viewBox="0 0 800 300" className="w-full" preserveAspectRatio="xMidYMid meet">
-          {/* Grid */}
-          {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
-            <g key={tick}>
-              <line
-                x1="60" y1={260 - tick * 200}
-                x2="780" y2={260 - tick * 200}
-                stroke="rgba(255,255,255,0.1)" strokeWidth="1"
-              />
-              <text x="55" y={264 - tick * 200} fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="end">
-                {(tick * 100).toFixed(0)}%
-              </text>
-            </g>
-          ))}
-
-          {/* Danger zone (>50%) */}
-          <rect x="60" y="60" width="720" height="40" fill="rgba(239,68,68,0.1)" />
-          <text x="770" y="82" fill="rgba(239,68,68,0.7)" fontSize="10" textAnchor="end">⚠️ 過高</text>
-
-          {/* Salary ratio line */}
-          <polyline
-            fill="none"
-            stroke="#fbbf24"
-            strokeWidth="2"
-            points={sampled.map((_, i) => {
-              const ratio = monthlyPayment / totalIncome
-              const clampedRatio = Math.min(ratio, 1)
-              return `${60 + (i / (sampled.length - 1)) * 720},${260 - clampedRatio * 200}`
-            }).join(' ')}
-          />
-
-          {/* 50% threshold line */}
-          <line x1="60" y1={160} x2="780" y2={160} stroke="rgba(239,68,68,0.5)" strokeWidth="1" strokeDasharray="4" />
-          <text x="65" y={155} fill="rgba(239,68,68,0.7)" fontSize="9">50% 警戒線</text>
-
-          {/* X axis */}
-          <line x1="60" y1="260" x2="780" y2="260" stroke="rgba(255,255,255,0.3)" />
-          {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-            <g key={t}>
-              <text x={60 + t * 720} y="278" fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="middle">
-                {Math.round(t * totalMonths)}月
-              </text>
-            </g>
-          ))}
-
-          {/* Y axis */}
-          <line x1="60" y1="60" x2="60" y2="260" stroke="rgba(255,255,255,0.3)" />
-        </svg>
-        <div className="flex items-center justify-center gap-6 mt-2 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-yellow-400"></div>
-            <span className="text-gray-300">還款/收入比例</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (view === 'balance') {
-    const maxBalance = displaySchedule[0]?.balance || 1
-
-    return (
-      <div className="w-full">
-        <svg viewBox="0 0 800 300" className="w-full" preserveAspectRatio="xMidYMid meet">
-          {/* Grid */}
-          {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
-            <g key={tick}>
-              <line
-                x1="60" y1={260 - tick * 200}
-                x2="780" y2={260 - tick * 200}
-                stroke="rgba(255,255,255,0.1)" strokeWidth="1"
-              />
-              <text x="55" y={264 - tick * 200} fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="end">
-                {formatNumber(maxBalance * (1 - tick))}
-              </text>
-            </g>
-          ))}
-
-          {/* Balance area */}
-          <polygon
-            fill="rgba(34,211,238,0.15)"
-            stroke="none"
-            points={`60,260 ${sampled.map((d, i) => `${60 + (i / (sampled.length - 1)) * 720},${260 - (d.balance / maxBalance) * 200}`).join(' ')} 780,260`}
-          />
-
-          {/* Balance line */}
-          <polyline
-            fill="none"
-            stroke="#22d3ee"
-            strokeWidth="2"
-            points={sampled.map((d, i) => 
-              `${60 + (i / (sampled.length - 1)) * 720},${260 - (d.balance / maxBalance) * 200}`
-            ).join(' ')}
-          />
-
-          {/* X axis */}
-          <line x1="60" y1="260" x2="780" y2="260" stroke="rgba(255,255,255,0.3)" />
-          {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-            <text key={t} x={60 + t * 720} y="278" fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="middle">
-              {Math.round(t * totalMonths)}月
-            </text>
-          ))}
-
-          {/* Y axis */}
-          <line x1="60" y1="60" x2="60" y2="260" stroke="rgba(255,255,255,0.3)" />
-          <text x="20" y="160" fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="middle" transform={`rotate(-90, 20, 160)`}>元</text>
-        </svg>
-        <div className="flex items-center justify-center gap-6 mt-2 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-cyan-400"></div>
-            <span className="text-gray-300">剩餘本金</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // principal-interest view (default)
-  const maxPayment = Math.max(monthlyPayment, displaySchedule[0]?.principal + displaySchedule[0]?.interest || 1)
-
-  return (
-    <div className="w-full">
-      <svg viewBox="0 0 800 300" className="w-full" preserveAspectRatio="xMidYMid meet">
-        {/* Grid */}
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
-          <g key={tick}>
-            <line
-              x1="60" y1={260 - tick * 200}
-              x2="780" y2={260 - tick * 200}
-              stroke="rgba(255,255,255,0.1)" strokeWidth="1"
-            />
-            <text x="55" y={264 - tick * 200} fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="end">
-              {formatNumber(maxPayment * (1 - tick))}
-            </text>
-          </g>
-        ))}
-
-        {/* Interest area */}
-        <polygon
-          fill="rgba(251,146,60,0.15)"
-          stroke="none"
-          points={`60,260 ${sampled.map((d, i) => `${60 + (i / (sampled.length - 1)) * 720},${260 - (d.interest / maxPayment) * 200}`).join(' ')} 780,260`}
-        />
-
-        {/* Principal area */}
-        <polygon
-          fill="rgba(34,197,94,0.15)"
-          stroke="none"
-          points={`60,260 ${sampled.map((d, i) => `${60 + (i / (sampled.length - 1)) * 720},${260 - ((d.principal + d.interest) / maxPayment) * 200}`).join(' ')} ${sampled.map((d, i) => `${60 + (i / (sampled.length - 1)) * 720},${260 - (d.interest / maxPayment) * 200}`).reverse().join(' ')}`}
-        />
-
-        {/* Interest line */}
-        <polyline
-          fill="none"
-          stroke="#fb923c"
-          strokeWidth="2"
-          points={sampled.map((d, i) => 
-            `${60 + (i / (sampled.length - 1)) * 720},${260 - (d.interest / maxPayment) * 200}`
-          ).join(' ')}
-        />
-
-        {/* Principal + Interest line */}
-        <polyline
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth="2"
-          points={sampled.map((d, i) => 
-            `${60 + (i / (sampled.length - 1)) * 720},${260 - ((d.principal + d.interest) / maxPayment) * 200}`
-          ).join(' ')}
-        />
-
-        {/* X axis */}
-        <line x1="60" y1="260" x2="780" y2="260" stroke="rgba(255,255,255,0.3)" />
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-          <text key={t} x={60 + t * 720} y="278" fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="middle">
-            {Math.round(t * totalMonths)}月
-          </text>
-        ))}
-
-        {/* Y axis */}
-        <line x1="60" y1="60" x2="60" y2="260" stroke="rgba(255,255,255,0.3)" />
-        <text x="20" y="160" fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="middle" transform={`rotate(-90, 20, 160)`}>元</text>
-      </svg>
-      <div className="flex items-center justify-center gap-6 mt-2 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-green-500"></div>
-          <span className="text-gray-300">本金 + 利息</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-orange-400"></div>
-          <span className="text-gray-300">利息</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-green-400 opacity-40"></div>
-          <span className="text-gray-300">本金</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Progress Ring Component
-function ProgressRing({ progress, size = 120, strokeWidth = 12 }: { progress: number, size?: number, strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = radius * 2 * Math.PI
-  const offset = circumference - progress * circumference
-
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle
-        cx={size / 2} cy={size / 2} r={radius}
-        fill="none"
-        stroke="rgba(255,255,255,0.1)"
-        strokeWidth={strokeWidth}
-      />
-      <circle
-        cx={size / 2} cy={size / 2} r={radius}
-        fill="none"
-        stroke="#22d3ee"
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
 export default function App() {
   const [housePrice, setHousePrice] = useState(2600)
   const [loanPercent, setLoanPercent] = useState(80)
@@ -401,7 +135,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'calculator' | 'timeline'>('calculator')
   const [monthlySalary, setMonthlySalary] = useState(150000)
   const [secondSalary, setSecondSalary] = useState(0)
-  const [timelineView, setTimelineView] = useState<TimelineView>('principal-interest')
   const [rentalProperty, setRentalProperty] = useState<RentalPropertyInfo>({
     rentIncome: 0,
     annualRate: 2.5,
@@ -425,12 +158,6 @@ export default function App() {
     : 0
   const netRentalIncome = rentalProperty.rentIncome - rentalMonthlyPayment
   const totalIncome = monthlySalary + secondSalary + netRentalIncome
-  const disposableIncome = totalIncome - result.monthlyPayment - newHouseManagementFee
-  const salaryRatio = totalIncome > 0 ? (result.monthlyPayment / totalIncome) * 100 : 0
-  const paidAmount = loanAmount - (result.schedule[result.schedule.length - 1]?.balance || 0)
-  const repaymentProgress = loanAmount > 0 ? paidAmount / loanAmount : 0
-  const totalMonths = years * 12
-  const graceMonths = graceYears * 12
 
   return (
     <div className="min-h-screen text-white py-8 px-4">
@@ -462,7 +189,7 @@ export default function App() {
                   : 'text-gray-300 hover:bg-white/10'
               }`}
             >
-              📈 薪水與還款時間軸
+              📈 收支分析
             </button>
           </div>
         </div>
@@ -778,542 +505,486 @@ export default function App() {
             </div>
           </>
         ) : (
-          /* Timeline Tab */
+          /* Timeline Tab - 全新三欄式版面 */
           <>
-            <div className="grid lg:grid-cols-2 gap-8">
-              {/* Left: Salary Input & Key Stats */}
-              <div className="space-y-6">
-                {/* 月薪輸入 */}
-                <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-xl font-semibold mb-4 text-yellow-300">💰 月薪收入</h2>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-2">月薪</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={monthlySalary}
-                          onChange={(e) => setMonthlySalary(Number(e.target.value))}
-                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-yellow-400"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        {[100000, 150000, 200000, 300000].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setMonthlySalary(s)}
-                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                              monthlySalary === s
-                                ? 'bg-yellow-500 text-white'
-                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                          >
-                            {s >= 100000 ? `${s / 10000}萬` : s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* 第二人月薪 */}
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-2">第二人月薪</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={secondSalary}
-                          onChange={(e) => setSecondSalary(Number(e.target.value))}
-                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-pink-400"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        {[20000, 30000, 40000, 50000].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setSecondSalary(s)}
-                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                              secondSalary === s
-                                ? 'bg-pink-500 text-white'
-                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                          >
-                            {s >= 10000 ? `${s / 10000}萬` : s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 新房子管理費 */}
-                    <div>
-                      <label className="block text-sm text-gray-300 mb-2">新房子管理費</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={newHouseManagementFee}
-                          onChange={(e) => setNewHouseManagementFee(Number(e.target.value))}
-                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-blue-400"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        {[0, 3000, 5000, 10000].map((f) => (
-                          <button
-                            key={f}
-                            onClick={() => setNewHouseManagementFee(f)}
-                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                              newHouseManagementFee === f
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                          >
-                            {f === 0 ? '無' : f.toLocaleString()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 出租房屋房貸資訊 */}
-                    <div className="mt-6 pt-4 border-t border-white/20">
-                      <h3 className="text-lg font-semibold mb-4 text-purple-300">🏠 出租房屋資訊</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-2">月租金收入</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={rentalProperty.rentIncome}
-                              onChange={(e) => setRentalProperty({ ...rentalProperty, rentIncome: Number(e.target.value) })}
-                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-purple-400"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            {[0, 20000, 30000, 50000].map((r) => (
-                              <button
-                                key={r}
-                                onClick={() => setRentalProperty({ ...rentalProperty, rentIncome: r })}
-                                className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                                  rentalProperty.rentIncome === r
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                                }`}
-                              >
-                                {r === 0 ? '無' : `${r / 10000}萬`}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-2">該房貸利率</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.001"
-                              value={rentalProperty.annualRate}
-                              onChange={(e) => setRentalProperty({ ...rentalProperty, annualRate: Number(e.target.value) })}
-                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-400"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">%</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-2">剩餘本金</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={rentalProperty.remainingPrincipal}
-                              onChange={(e) => setRentalProperty({ ...rentalProperty, remainingPrincipal: Number(e.target.value) })}
-                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-400"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元</span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-2">剩餘年限</label>
-                          <div className="flex gap-2">
-                            {[10, 15, 20, 25, 30].map((y) => (
-                              <button
-                                key={y}
-                                onClick={() => setRentalProperty({ ...rentalProperty, remainingYears: y })}
-                                className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                                  rentalProperty.remainingYears === y
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                                }`}
-                              >
-                                {y}年
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            {/* 桌面版：三欄橫向排列 | 手機版：上下三欄 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* ===== 左欄：收入（綠色系）===== */}
+              <div className="bg-gradient-to-br from-emerald-900/40 to-green-800/20 backdrop-blur rounded-2xl p-5 border border-emerald-500/30">
+                <div className="flex items-center gap-2 mb-5">
+                  <span className="text-2xl">💰</span>
+                  <h2 className="text-xl font-bold text-emerald-300">收入</h2>
                 </div>
 
-                {/* 還款能力分析 */}
-                <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 backdrop-blur rounded-2xl p-6 border border-yellow-400/30">
-                  <h2 className="text-xl font-semibold mb-4 text-yellow-300">💼 還款能力分析</h2>
-                  
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="relative flex items-center justify-center">
-                      <ProgressRing progress={Math.min(salaryRatio / 100, 1)} size={140} strokeWidth={14} />
-                      <div className="absolute text-center">
-                        <div className="text-3xl font-bold text-yellow-400">{salaryRatio.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-400">還款佔比</div>
+                <div className="space-y-4">
+                  {/* 月薪輸入 */}
+                  <div>
+                    <label className="block text-sm text-emerald-200/70 mb-1.5">月薪</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={monthlySalary}
+                        onChange={(e) => setMonthlySalary(Number(e.target.value))}
+                        className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded-lg px-3 py-2.5 text-white text-lg focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400/60 text-sm">元</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      {[100000, 150000, 200000, 300000].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setMonthlySalary(s)}
+                          className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${
+                            monthlySalary === s
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                              : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800/50'
+                          }`}
+                        >
+                          {s / 10000}萬
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 第二人月薪 */}
+                  <div>
+                    <label className="block text-sm text-emerald-200/70 mb-1.5">第二人月薪</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={secondSalary}
+                        onChange={(e) => setSecondSalary(Number(e.target.value))}
+                        className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded-lg px-3 py-2.5 text-white text-lg focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400/60 text-sm">元</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      {[0, 30000, 50000, 80000].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setSecondSalary(s)}
+                          className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${
+                            secondSalary === s
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                              : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800/50'
+                          }`}
+                        >
+                          {s === 0 ? '無' : `${s / 10000}萬`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 分隔線 */}
+                  <div className="border-t border-emerald-500/20 pt-4 mt-4">
+                    <h3 className="text-sm font-semibold text-emerald-300/80 mb-3 flex items-center gap-2">
+                      <span>🏠</span>出租房屋資訊
+                    </h3>
+                    
+                    {/* 月租金 */}
+                    <div className="mb-3">
+                      <label className="block text-xs text-emerald-200/60 mb-1">月租金收入</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={rentalProperty.rentIncome}
+                          onChange={(e) => setRentalProperty({ ...rentalProperty, rentIncome: Number(e.target.value) })}
+                          className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-400"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400/60 text-sm">元</span>
+                      </div>
+                      <div className="flex gap-1.5 mt-1.5">
+                        {[0, 20000, 30000, 50000].map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => setRentalProperty({ ...rentalProperty, rentIncome: r })}
+                            className={`flex-1 py-1 rounded text-xs transition-all ${
+                              rentalProperty.rentIncome === r
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-emerald-900/30 text-emerald-300/70 hover:bg-emerald-800/40'
+                            }`}
+                          >
+                            {r === 0 ? '無' : `${r / 10000}萬`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 出租房貸資訊 */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-emerald-200/60 mb-1">房貸利率</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={rentalProperty.annualRate}
+                            onChange={(e) => setRentalProperty({ ...rentalProperty, annualRate: Number(e.target.value) })}
+                            className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-400"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400/60 text-xs">%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-emerald-200/60 mb-1">剩餘年限</label>
+                        <select
+                          value={rentalProperty.remainingYears}
+                          onChange={(e) => setRentalProperty({ ...rentalProperty, remainingYears: Number(e.target.value) })}
+                          className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-400"
+                        >
+                          {[5, 10, 15, 20, 25, 30].map((y) => (
+                            <option key={y} value={y}>{y}年</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <label className="block text-xs text-emerald-200/60 mb-1">剩餘本金</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={rentalProperty.remainingPrincipal}
+                          onChange={(e) => setRentalProperty({ ...rentalProperty, remainingPrincipal: Number(e.target.value) })}
+                          className="w-full bg-emerald-950/50 border border-emerald-500/30 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-400"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400/60 text-xs">元</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                      <span className="text-gray-300">月薪</span>
-                      <span className="text-white font-medium">{formatCurrency(monthlySalary)}</span>
-                    </div>
-                    {secondSalary > 0 && (
-                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                        <span className="text-gray-300">第二人月薪</span>
-                        <span className="text-pink-400 font-medium">+{formatCurrency(secondSalary)}</span>
-                      </div>
-                    )}
-                    {rentalProperty.rentIncome > 0 && (
-                      <>
-                        <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                          <span className="text-gray-300">租金收入</span>
-                          <span className="text-green-400 font-medium">+{formatCurrency(rentalProperty.rentIncome)}</span>
-                        </div>
-                        {rentalMonthlyPayment > 0 && (
-                          <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                            <span className="text-gray-300">出租房貸還款</span>
-                            <span className={rentalMonthlyPayment > rentalProperty.rentIncome ? 'text-red-400' : 'text-orange-400'}>
-                              -{formatCurrency(rentalMonthlyPayment)}
-                            </span>
-                          </div>
-                        )}
-                        <div className={`flex justify-between items-center py-2 px-3 rounded-lg border ${
-                          netRentalIncome < 0 
-                            ? 'bg-red-500/20 border-red-500/40' 
-                            : 'bg-green-500/10 border-green-500/30'
-                        }`}>
-                          <span className="text-gray-300">淨租金收入</span>
-                          <span className={`font-bold ${netRentalIncome < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                            {netRentalIncome >= 0 ? '+' : ''}{formatCurrency(netRentalIncome)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    {(secondSalary > 0 || rentalProperty.rentIncome > 0) && (
-                      <div className="flex justify-between items-center py-2 px-3 bg-green-500/10 rounded-lg border border-green-500/30">
-                        <span className="text-gray-300">總收入</span>
-                        <span className="text-green-400 font-bold">{formatCurrency(totalIncome)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                      <span className="text-gray-300">每月還款</span>
-                      <span className="text-yellow-400 font-medium">{formatCurrency(result.monthlyPayment)}</span>
-                    </div>
-                    <div className={`flex justify-between items-center py-2 px-3 rounded-lg border ${
-                      disposableIncome < 0 
-                        ? 'bg-red-500/20 border-red-500/40' 
-                        : 'bg-white/5 border-green-500/30'
+                  {/* 淨租金收入計算結果 */}
+                  {rentalProperty.rentIncome > 0 && (
+                    <div className={`p-3 rounded-xl mt-3 ${
+                      netRentalIncome >= 0 
+                        ? 'bg-emerald-500/20 border border-emerald-400/30' 
+                        : 'bg-red-500/20 border border-red-400/30'
                     }`}>
-                      <span className="text-gray-300">每月可支配</span>
-                      <span className={`font-bold ${disposableIncome < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                        {formatCurrency(disposableIncome)}
-                      </span>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-300">租金收入</span>
+                        <span className="text-emerald-400">+{formatNumber(rentalProperty.rentIncome)}</span>
+                      </div>
+                      {rentalMonthlyPayment > 0 && (
+                        <div className="flex justify-between items-center text-sm mt-1">
+                          <span className="text-gray-300">出租房貸還款</span>
+                          <span className="text-red-400">-{formatNumber(rentalMonthlyPayment)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center mt-2 pt-2 border-t border-white/10">
+                        <span className={`font-semibold ${netRentalIncome >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                          淨租金收入
+                        </span>
+                        <span className={`font-bold text-lg ${netRentalIncome >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {netRentalIncome >= 0 ? '+' : ''}{formatNumber(netRentalIncome)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+              </div>
 
-                  {/* 還款負擔警示 */}
-                  <div className="mt-4 p-3 rounded-xl text-center">
-                    {netRentalIncome < 0 && (
-                      <div className="bg-red-500/20 border border-red-500/40 rounded-lg p-3 mb-3">
-                        <div className="text-red-400 font-bold text-lg">⚠️ 淨租金為負</div>
-                        <div className="text-red-300 text-sm mt-1">出租房屋的租金收入不足以支應該房貸還款</div>
-                      </div>
-                    )}
-                    {salaryRatio > 50 ? (
-                      <div className="bg-red-500/20 border border-red-500/40 rounded-lg p-3">
-                        <div className="text-red-400 font-bold text-lg">⚠️ 還款負擔過重</div>
-                        <div className="text-red-300 text-sm mt-1">建議降低貸款金額或延長還款年限</div>
-                      </div>
-                    ) : salaryRatio > 30 ? (
-                      <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-3">
-                        <div className="text-yellow-400 font-bold text-lg">⚡ 黃色警示</div>
-                        <div className="text-yellow-300 text-sm mt-1">還款佔比偏高，需謹慎評估</div>
-                      </div>
-                    ) : (
-                      <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-3">
-                        <div className="text-green-400 font-bold text-lg">✅ 正常範圍</div>
-                        <div className="text-green-300 text-sm mt-1">還款負擔在合理範圍內</div>
-                      </div>
-                    )}
-                  </div>
+              {/* ===== 中欄：支出（紅色系）===== */}
+              <div className="bg-gradient-to-br from-rose-900/40 to-red-800/20 backdrop-blur rounded-2xl p-5 border border-rose-500/30">
+                <div className="flex items-center gap-2 mb-5">
+                  <span className="text-2xl">💸</span>
+                  <h2 className="text-xl font-bold text-rose-300">支出</h2>
                 </div>
 
-                {/* 還款進度 */}
-                <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-xl font-semibold mb-4 text-cyan-300">📊 還款進度</h2>
-                  
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="relative flex items-center justify-center">
-                      <ProgressRing progress={repaymentProgress} size={120} strokeWidth={12} />
-                      <div className="absolute text-center">
-                        <div className="text-2xl font-bold text-cyan-400">{(repaymentProgress * 100).toFixed(1)}%</div>
-                        <div className="text-xs text-gray-400">已還</div>
+                <div className="space-y-4">
+                  {/* 主房貸資訊（來自房貸試算 Tab） */}
+                  <div className="bg-rose-950/40 rounded-xl p-4 border border-rose-500/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-rose-200/70 text-sm">主房貸（新房）</span>
+                      <span className="text-rose-400/60 text-xs">來自房貸試算</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">貸款金額</span>
+                        <span className="text-white font-medium">{formatNumber(loanAmount)} 元</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">年利率</span>
+                        <span className="text-white">{annualRate}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">貸款年限</span>
+                        <span className="text-white">{years} 年</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-rose-500/20">
+                        <span className="text-rose-200 font-semibold">每月還款</span>
+                        <span className="text-rose-400 font-bold text-xl">{formatNumber(result.monthlyPayment)}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/10 rounded-xl p-4 text-center">
-                      <div className="text-sm text-gray-300">已還本金</div>
-                      <div className="text-xl font-bold text-green-400">{formatNumber(paidAmount)}</div>
+                  {/* 出租房每月還款 */}
+                  {rentalMonthlyPayment > 0 && (
+                    <div className="bg-rose-950/40 rounded-xl p-4 border border-rose-500/20">
+                      <div className="flex justify-between items-center">
+                        <span className="text-rose-200/70 text-sm">出租房每月還款</span>
+                        <span className="text-rose-400 font-bold">{formatNumber(rentalMonthlyPayment)}</span>
+                      </div>
                     </div>
-                    <div className="bg-white/10 rounded-xl p-4 text-center">
-                      <div className="text-sm text-gray-300">剩餘本金</div>
-                      <div className="text-xl font-bold text-orange-400">{formatNumber(result.schedule[result.schedule.length - 1]?.balance || loanAmount)}</div>
+                  )}
+
+                  {/* 新房子管理費 */}
+                  <div>
+                    <label className="block text-sm text-rose-200/70 mb-1.5">新房子管理費</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={newHouseManagementFee}
+                        onChange={(e) => setNewHouseManagementFee(Number(e.target.value))}
+                        className="w-full bg-rose-950/50 border border-rose-500/30 rounded-lg px-3 py-2.5 text-white text-lg focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400/50"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-400/60 text-sm">元</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      {[0, 3000, 5000, 8000].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setNewHouseManagementFee(f)}
+                          className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${
+                            newHouseManagementFee === f
+                              ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30'
+                              : 'bg-rose-900/40 text-rose-300 hover:bg-rose-800/50'
+                          }`}
+                        >
+                          {f === 0 ? '無' : f.toLocaleString()}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="mt-4 text-center text-gray-400 text-sm">
-                    預計 {years} 年 ({totalMonths} 期) 還完
+                  {/* 總支出計算 */}
+                  <div className="bg-rose-500/20 border border-rose-400/30 rounded-xl p-4 mt-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">主房貸還款</span>
+                        <span className="text-rose-400">{formatNumber(result.monthlyPayment)}</span>
+                      </div>
+                      {rentalMonthlyPayment > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-300">出租房還款</span>
+                          <span className="text-rose-400">{formatNumber(rentalMonthlyPayment)}</span>
+                        </div>
+                      )}
+                      {newHouseManagementFee > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-300">管理費</span>
+                          <span className="text-rose-400">{formatNumber(newHouseManagementFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2 border-t border-rose-400/20">
+                        <span className="text-rose-200 font-semibold text-base">總支出</span>
+                        <span className="text-rose-300 font-bold text-2xl">
+                          {formatNumber(result.monthlyPayment + rentalMonthlyPayment + newHouseManagementFee)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-                  {/* 收支概覽（兩欄卡片） */}
-                  {(() => {
-                    const localRentalMonthlyPayment = rentalProperty.remainingPrincipal > 0 && rentalProperty.remainingYears > 0 
-                      ? calculateRentalMortgage(rentalProperty.remainingPrincipal, rentalProperty.annualRate, rentalProperty.remainingYears)
-                      : 0
-                    const localNetRentalIncome = rentalProperty.rentIncome - localRentalMonthlyPayment
-                    const localTotalIncome = monthlySalary + secondSalary + localNetRentalIncome
-                    const totalExpense = result.monthlyPayment + newHouseManagementFee
-                    const disposable = localTotalIncome - totalExpense
-                    const expenseRatio = localTotalIncome > 0 ? (totalExpense / localTotalIncome) * 100 : 0
+              {/* ===== 右欄：結果（藍紫色系）===== */}
+              <div className="bg-gradient-to-br from-violet-900/40 to-indigo-800/20 backdrop-blur rounded-2xl p-5 border border-violet-500/30">
+                <div className="flex items-center gap-2 mb-5">
+                  <span className="text-2xl">📊</span>
+                  <h2 className="text-xl font-bold text-violet-300">分析結果</h2>
+                </div>
 
-                    return (
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* 收入欄 */}
-                        <div className="bg-gradient-to-br from-green-900/40 to-green-800/20 rounded-2xl p-5 border border-green-500/30">
-                          <div className="flex items-center gap-2 mb-4">
-                            <span className="text-green-400 text-lg">💰</span>
-                            <h3 className="text-green-300 font-semibold">月收入</h3>
-                          </div>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">月薪</span>
-                              <span className="text-green-400 font-medium">{formatNumber(monthlySalary)}</span>
-                            </div>
-                            {localNetRentalIncome !== 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">租金淨收入</span>
-                                <span className={`font-medium ${localNetRentalIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>{localNetRentalIncome >= 0 ? '' : '-'}{formatNumber(Math.abs(localNetRentalIncome))}</span>
+                {(() => {
+                  const totalExpenseCalc = result.monthlyPayment + rentalMonthlyPayment + newHouseManagementFee
+                  const disposableCalc = totalIncome - totalExpenseCalc
+                  const mortgageRatio = totalIncome > 0 ? (result.monthlyPayment / totalIncome) * 100 : 0
+                  const disposableRatio = totalIncome > 0 ? (disposableCalc / totalIncome) * 100 : 0
+
+                  // 三級警示判斷
+                  let alertLevel: 'green' | 'yellow' | 'red' = 'green'
+                  if (mortgageRatio > 50 || disposableCalc < 0) alertLevel = 'red'
+                  else if (mortgageRatio > 30) alertLevel = 'yellow'
+
+                  return (
+                    <div className="space-y-4">
+                      {/* 收支摘要 */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
+                          <div className="text-emerald-300/70 text-xs mb-1">總收入</div>
+                          <div className="text-emerald-400 font-bold text-lg">{formatNumber(totalIncome)}</div>
+                        </div>
+                        <div className="bg-rose-500/10 rounded-xl p-3 border border-rose-500/20">
+                          <div className="text-rose-300/70 text-xs mb-1">總支出</div>
+                          <div className="text-rose-400 font-bold text-lg">{formatNumber(totalExpenseCalc)}</div>
+                        </div>
+                      </div>
+
+                      {/* 可支配金額 - 大數字顯示 */}
+                      <div className={`rounded-xl p-4 text-center ${
+                        disposableCalc >= 0 
+                          ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-400/30' 
+                          : 'bg-gradient-to-r from-red-500/20 to-rose-500/20 border border-red-400/30'
+                      }`}>
+                        <div className="text-gray-300 text-sm mb-1">可支配金額</div>
+                        <div className={`font-bold text-3xl ${disposableCalc >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {disposableCalc >= 0 ? '+' : ''}{formatNumber(disposableCalc)}
+                        </div>
+                        <div className="text-gray-400 text-xs mt-1">元/月</div>
+                      </div>
+
+                      {/* 還款能力分析環形圖 */}
+                      <div className="bg-violet-950/40 rounded-xl p-4 border border-violet-500/20">
+                        <div className="text-violet-300/70 text-sm mb-3 text-center">可支配佔比分析</div>
+                        <div className="flex justify-center">
+                          <div className="relative">
+                            <svg width="140" height="140" className="transform -rotate-90">
+                              {/* 背景圓 */}
+                              <circle
+                                cx="70" cy="70" r="55"
+                                fill="none"
+                                stroke="rgba(255,255,255,0.1)"
+                                strokeWidth="20"
+                              />
+                              {/* 支出佔比（紅色） */}
+                              <circle
+                                cx="70" cy="70" r="55"
+                                fill="none"
+                                stroke="#f43f5e"
+                                strokeWidth="20"
+                                strokeDasharray={`${Math.min(100 - disposableRatio, 100) * 3.45} 345`}
+                                strokeLinecap="round"
+                              />
+                              {/* 可支配佔比（綠色，如果是正的） */}
+                              {disposableCalc > 0 && (
+                                <circle
+                                  cx="70" cy="70" r="55"
+                                  fill="none"
+                                  stroke="#10b981"
+                                  strokeWidth="20"
+                                  strokeDasharray={`${Math.min(disposableRatio, 100) * 3.45} 345`}
+                                  strokeDashoffset={`-${Math.min(100 - disposableRatio, 100) * 3.45}`}
+                                  strokeLinecap="round"
+                                />
+                              )}
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <div className={`text-2xl font-bold ${disposableCalc >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {disposableRatio.toFixed(0)}%
                               </div>
-                            )}
-                            {secondSalary > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">第二人月薪</span>
-                                <span className="text-green-400 font-medium">{formatNumber(secondSalary)}</span>
-                              </div>
-                            )}
-                            <div className="flex justify-between pt-2 border-t border-green-500/20">
-                              <span className="text-green-200 font-medium">總收入</span>
-                              <span className="text-green-300 font-bold">{formatNumber(localTotalIncome)}</span>
+                              <div className="text-xs text-gray-400">可支配</div>
                             </div>
                           </div>
                         </div>
-
-                        {/* 支出欄 */}
-                        <div className="bg-gradient-to-br from-red-900/40 to-red-800/20 rounded-2xl p-5 border border-red-500/30">
-                          <div className="flex items-center gap-2 mb-4">
-                            <span className="text-red-400 text-lg">💸</span>
-                            <h3 className="text-red-300 font-semibold">月支出</h3>
+                        <div className="flex justify-center gap-4 mt-3 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                            <span className="text-gray-400">支出</span>
                           </div>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">主房貸還款</span>
-                              <span className="text-red-400 font-medium">{formatNumber(result.monthlyPayment)}</span>
-                            </div>
-
-                            {newHouseManagementFee > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">新房子管理費</span>
-                                <span className="text-red-400 font-medium">{formatNumber(newHouseManagementFee)}</span>
-                              </div>
-                            )}
-                            <div className="flex justify-between pt-2 border-t border-red-500/20">
-                              <span className="text-red-200 font-medium">總支出</span>
-                              <span className="text-red-300 font-bold">{formatNumber(totalExpense)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 底部摘要 */}
-                        <div className="col-span-2 bg-white/5 rounded-xl p-4 border border-white/10">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <span className="text-gray-400 text-sm">可支配金額</span>
-                              <div className={`text-2xl font-bold ${disposable >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {formatNumber(Math.abs(disposable))}
-                                {disposable < 0 && <span className="text-sm ml-1">⚠️ 不足</span>}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-gray-400 text-sm">還款佔比</span>
-                              <div className={`text-2xl font-bold ${expenseRatio > 50 ? 'text-red-400' : expenseRatio > 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                                {expenseRatio.toFixed(1)}%
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                            <span className="text-gray-400">可支配</span>
                           </div>
                         </div>
                       </div>
-                    )
-                  })()}
 
-                {/* Right: Timeline Chart */}
-                <div className="space-y-6">
-                {/* 圖表切換 */}
-                <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-cyan-300">📈 還款時間軸</h2>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setTimelineView('principal-interest')}
-                        className={`px-3 py-1.5 rounded text-sm transition-all ${
-                          timelineView === 'principal-interest'
-                            ? 'bg-cyan-500 text-white'
-                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                        }`}
-                      >
-                        本金/利息
-                      </button>
-                      <button
-                        onClick={() => setTimelineView('balance')}
-                        className={`px-3 py-1.5 rounded text-sm transition-all ${
-                          timelineView === 'balance'
-                            ? 'bg-cyan-500 text-white'
-                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                        }`}
-                      >
-                        餘額
-                      </button>
-                      <button
-                        onClick={() => setTimelineView('salary-ratio')}
-                        className={`px-3 py-1.5 rounded text-sm transition-all ${
-                          timelineView === 'salary-ratio'
-                            ? 'bg-cyan-500 text-white'
-                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                        }`}
-                      >
-                        還款/收入比例
-                      </button>
-                    </div>
-                  </div>
+                      {/* 還款佔收入比 */}
+                      <div className="bg-violet-950/40 rounded-xl p-4 border border-violet-500/20">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-violet-300/70 text-sm">主房貸佔收入比</span>
+                          <span className={`font-bold ${
+                            mortgageRatio > 50 ? 'text-red-400' : mortgageRatio > 30 ? 'text-yellow-400' : 'text-emerald-400'
+                          }`}>
+                            {mortgageRatio.toFixed(1)}%
+                          </span>
+                        </div>
+                        {/* 進度條 */}
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all ${
+                              mortgageRatio > 50 ? 'bg-red-500' : mortgageRatio > 30 ? 'bg-yellow-500' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(mortgageRatio, 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>0%</span>
+                          <span className="text-yellow-500/70">30%</span>
+                          <span className="text-red-500/70">50%</span>
+                          <span>100%</span>
+                        </div>
+                      </div>
 
-                  {/* Chart */}
-                  <TimelineChart
-                    schedule={result.schedule}
-                    monthlyPayment={result.monthlyPayment}
-                    view={timelineView}
-                    monthlySalary={monthlySalary}
-                    secondSalary={secondSalary}
-                    netRentalIncome={netRentalIncome}
-                    totalMonths={totalMonths}
-                    graceMonths={graceMonths}
-                    loanType={loanType}
-                  />
-                </div>
-
-                {/* 關鍵時間點 */}
-                <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-lg font-semibold mb-4 text-purple-300">⏰ 關鍵時間點</h2>
-                  
-                  <div className="space-y-3">
-                    {/* 找到利息=本金的時間點（等額本息） */}
-                    {(() => {
-                      if (repaymentType === 'equal-payment' && result.schedule) {
-                        const midPoint = result.schedule.findIndex(
-                          (d) => d.principal >= d.interest
-                        )
-                        if (midPoint > 0) {
-                          const year = Math.ceil((midPoint + 1) / 12)
-                          const month = (midPoint + 1) % 12 || 12
-                          return (
-                            <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                              <span className="text-gray-300">本金超越利息</span>
-                              <span className="text-purple-400 font-medium">
-                                約第 {year} 年 {month > 1 ? `${month}月` : ''}
-                              </span>
+                      {/* 三級警示 */}
+                      <div className={`rounded-xl p-4 text-center ${
+                        alertLevel === 'green' 
+                          ? 'bg-emerald-500/20 border border-emerald-400/30' 
+                          : alertLevel === 'yellow'
+                          ? 'bg-yellow-500/20 border border-yellow-400/30'
+                          : 'bg-red-500/20 border border-red-400/30'
+                      }`}>
+                        {alertLevel === 'green' && (
+                          <>
+                            <div className="text-emerald-400 font-bold text-lg">✅ 財務健康</div>
+                            <div className="text-emerald-300/70 text-sm mt-1">還款負擔在合理範圍內</div>
+                          </>
+                        )}
+                        {alertLevel === 'yellow' && (
+                          <>
+                            <div className="text-yellow-400 font-bold text-lg">⚠️ 黃色警示</div>
+                            <div className="text-yellow-300/70 text-sm mt-1">還款佔比偏高，需謹慎評估</div>
+                          </>
+                        )}
+                        {alertLevel === 'red' && (
+                          <>
+                            <div className="text-red-400 font-bold text-lg">🚨 紅色警示</div>
+                            <div className="text-red-300/70 text-sm mt-1">
+                              {disposableCalc < 0 ? '收入不足以支應支出' : '還款負擔過重，建議調整'}
                             </div>
-                          )
-                        }
-                      }
-                      return null
-                    })()}
+                          </>
+                        )}
+                      </div>
 
-                    {/* 還款一半 */}
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                      <span className="text-gray-300">還款完成 50%</span>
-                      <span className="text-cyan-400 font-medium">
-                        約第 {Math.ceil(totalMonths * 0.5 / 12)} 年 ({Math.ceil(totalMonths * 0.5)} 期)
-                      </span>
+                      {/* 詳細數據 */}
+                      <div className="bg-violet-950/30 rounded-xl p-3 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">月薪</span>
+                          <span className="text-emerald-400">{formatNumber(monthlySalary)}</span>
+                        </div>
+                        {secondSalary > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">第二人月薪</span>
+                            <span className="text-emerald-400">+{formatNumber(secondSalary)}</span>
+                          </div>
+                        )}
+                        {netRentalIncome !== 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">淨租金收入</span>
+                            <span className={netRentalIncome >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                              {netRentalIncome >= 0 ? '+' : ''}{formatNumber(netRentalIncome)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="border-t border-violet-500/20 pt-2 mt-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">主房貸還款</span>
+                            <span className="text-rose-400">-{formatNumber(result.monthlyPayment)}</span>
+                          </div>
+                          {rentalMonthlyPayment > 0 && (
+                            <div className="flex justify-between mt-1">
+                              <span className="text-gray-400">出租房還款</span>
+                              <span className="text-rose-400">-{formatNumber(rentalMonthlyPayment)}</span>
+                            </div>
+                          )}
+                          {newHouseManagementFee > 0 && (
+                            <div className="flex justify-between mt-1">
+                              <span className="text-gray-400">管理費</span>
+                              <span className="text-rose-400">-{formatNumber(newHouseManagementFee)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-
-                    {/* 還款完成 */}
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                      <span className="text-gray-300">貸款期滿</span>
-                      <span className="text-green-400 font-medium">
-                        第 {years} 年 ({totalMonths} 期)
-                      </span>
-                    </div>
-
-                    {/* 總還款時間 */}
-                    <div className="flex justify-between items-center py-2 px-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                      <span className="text-purple-300">🏠 完整還款時間</span>
-                      <span className="text-purple-200 font-bold">
-                        {years} 年 ({totalMonths} 期)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 每月詳細數據表 */}
-                <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-lg font-semibold mb-4 text-green-300">📋 每年還款摘要</h2>
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="text-gray-400 border-b border-white/20 sticky top-0 bg-gray-900/80">
-                        <tr>
-                          <th className="py-2 text-left">年度</th>
-                          <th className="py-2 text-right">年還本金</th>
-                          <th className="py-2 text-right">年付利息</th>
-                          <th className="py-2 text-right">年底餘額</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Array.from({ length: years }, (_, i) => {
-                          const yearStart = i * 12
-                          const yearEnd = Math.min(yearStart + 12, totalMonths)
-                          const yearData = result.schedule.slice(yearStart, yearEnd)
-                          const yearPrincipal = yearData.reduce((sum, d) => sum + d.principal, 0)
-                          const yearInterest = yearData.reduce((sum, d) => sum + d.interest, 0)
-                          const yearBalance = yearData[yearData.length - 1]?.balance || 0
-
-                          return (
-                            <tr key={i} className="border-b border-white/10">
-                              <td className="py-2 text-gray-300">第 {i + 1} 年</td>
-                              <td className="py-2 text-right text-green-400">{formatNumber(yearPrincipal)}</td>
-                              <td className="py-2 text-right text-orange-400">{formatNumber(yearInterest)}</td>
-                              <td className="py-2 text-right text-white">{formatNumber(yearBalance)}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                  )
+                })()}
               </div>
             </div>
           </>
