@@ -4,6 +4,23 @@ type RepaymentType = 'equal-principal' | 'equal-payment'
 type LoanType = 'no-grace' | 'interest-only' | 'partial-grace'
 type TimelineView = 'principal-interest' | 'balance' | 'salary-ratio'
 
+interface RentalPropertyInfo {
+  rentIncome: number
+  annualRate: number
+  remainingPrincipal: number
+  remainingYears: number
+}
+
+// 計算出租房屋每月還款（本息平均攤還）
+function calculateRentalMortgage(principal: number, annualRate: number, years: number): number {
+  const monthlyRate = annualRate / 100 / 12
+  const totalMonths = years * 12
+  if (monthlyRate === 0) return principal / totalMonths
+  const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / 
+                  (Math.pow(1 + monthlyRate, totalMonths) - 1)
+  return payment
+}
+
 interface CalculationResult {
   monthlyPayment: number
   totalInterest: number
@@ -383,6 +400,12 @@ export default function App() {
   const [monthlySalary, setMonthlySalary] = useState(150000)
   const [monthlyRent, setMonthlyRent] = useState(0)
   const [timelineView, setTimelineView] = useState<TimelineView>('principal-interest')
+  const [rentalProperty, setRentalProperty] = useState<RentalPropertyInfo>({
+    rentIncome: 0,
+    annualRate: 2.5,
+    remainingPrincipal: 0,
+    remainingYears: 20
+  })
 
   const loanAmount = housePrice * 10000 * (loanPercent / 100)
   const result = calculateMortgage(loanAmount, annualRate, years, repaymentType, loanType, graceYears)
@@ -393,7 +416,12 @@ export default function App() {
     ? result.monthlyPayment - firstMonthInterest 
     : loanAmount / (years * 12)
 
-  const totalIncome = monthlySalary + monthlyRent
+  // 出租房屋相關計算
+  const rentalMonthlyPayment = rentalProperty.remainingPrincipal > 0 && rentalProperty.remainingYears > 0
+    ? calculateRentalMortgage(rentalProperty.remainingPrincipal, rentalProperty.annualRate, rentalProperty.remainingYears)
+    : 0
+  const netRentalIncome = rentalProperty.rentIncome - rentalMonthlyPayment
+  const totalIncome = monthlySalary + (netRentalIncome > 0 ? netRentalIncome : 0)
   const disposableIncome = totalIncome - result.monthlyPayment
   const salaryRatio = totalIncome > 0 ? (result.monthlyPayment / totalIncome) * 100 : 0
   const paidAmount = loanAmount - (result.schedule[result.schedule.length - 1]?.balance || 0)
@@ -810,6 +838,83 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+
+                    {/* 出租房屋房貸資訊 */}
+                    <div className="mt-6 pt-4 border-t border-white/20">
+                      <h3 className="text-lg font-semibold mb-4 text-purple-300">🏠 出租房屋資訊</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-2">月租金收入</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={rentalProperty.rentIncome}
+                              onChange={(e) => setRentalProperty({ ...rentalProperty, rentIncome: Number(e.target.value) })}
+                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-purple-400"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            {[0, 20000, 30000, 50000].map((r) => (
+                              <button
+                                key={r}
+                                onClick={() => setRentalProperty({ ...rentalProperty, rentIncome: r })}
+                                className={`flex-1 py-1.5 rounded text-sm transition-all ${
+                                  rentalProperty.rentIncome === r
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                }`}
+                              >
+                                {r === 0 ? '無' : `${r / 10000}萬`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-2">該房貸利率</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.001"
+                              value={rentalProperty.annualRate}
+                              onChange={(e) => setRentalProperty({ ...rentalProperty, annualRate: Number(e.target.value) })}
+                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-400"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-2">剩餘本金</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={rentalProperty.remainingPrincipal}
+                              onChange={(e) => setRentalProperty({ ...rentalProperty, remainingPrincipal: Number(e.target.value) })}
+                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-400"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-2">剩餘年限</label>
+                          <div className="flex gap-2">
+                            {[10, 15, 20, 25, 30].map((y) => (
+                              <button
+                                key={y}
+                                onClick={() => setRentalProperty({ ...rentalProperty, remainingYears: y })}
+                                className={`flex-1 py-1.5 rounded text-sm transition-all ${
+                                  rentalProperty.remainingYears === y
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                }`}
+                              >
+                                {y}年
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -832,13 +937,31 @@ export default function App() {
                       <span className="text-gray-300">月薪</span>
                       <span className="text-white font-medium">{formatCurrency(monthlySalary)}</span>
                     </div>
-                    {monthlyRent > 0 && (
-                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
-                        <span className="text-gray-300">租金收入</span>
-                        <span className="text-green-400 font-medium">+{formatCurrency(monthlyRent)}</span>
-                      </div>
+                    {rentalProperty.rentIncome > 0 && (
+                      <>
+                        <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
+                          <span className="text-gray-300">租金收入</span>
+                          <span className="text-green-400 font-medium">+{formatCurrency(rentalProperty.rentIncome)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
+                          <span className="text-gray-300">出租房貸還款</span>
+                          <span className={rentalMonthlyPayment > rentalProperty.rentIncome ? 'text-red-400' : 'text-orange-400'}>
+                            -{formatCurrency(rentalMonthlyPayment)}
+                          </span>
+                        </div>
+                        <div className={`flex justify-between items-center py-2 px-3 rounded-lg border ${
+                          netRentalIncome < 0 
+                            ? 'bg-red-500/20 border-red-500/40' 
+                            : 'bg-green-500/10 border-green-500/30'
+                        }`}>
+                          <span className="text-gray-300">淨租金收入</span>
+                          <span className={`font-bold ${netRentalIncome < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                            {netRentalIncome >= 0 ? '+' : ''}{formatCurrency(netRentalIncome)}
+                          </span>
+                        </div>
+                      </>
                     )}
-                    {monthlyRent > 0 && (
+                    {rentalProperty.rentIncome > 0 && netRentalIncome > 0 && (
                       <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg border border-green-500/30">
                         <span className="text-gray-300">總收入</span>
                         <span className="text-green-400 font-bold">{formatCurrency(totalIncome)}</span>
@@ -848,14 +971,26 @@ export default function App() {
                       <span className="text-gray-300">每月還款</span>
                       <span className="text-yellow-400 font-medium">{formatCurrency(result.monthlyPayment)}</span>
                     </div>
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg border border-green-500/30">
+                    <div className={`flex justify-between items-center py-2 px-3 rounded-lg border ${
+                      disposableIncome < 0 
+                        ? 'bg-red-500/20 border-red-500/40' 
+                        : 'bg-white/5 border-green-500/30'
+                    }`}>
                       <span className="text-gray-300">每月可支配</span>
-                      <span className="text-green-400 font-bold">{formatCurrency(disposableIncome)}</span>
+                      <span className={`font-bold ${disposableIncome < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {formatCurrency(disposableIncome)}
+                      </span>
                     </div>
                   </div>
 
                   {/* 還款負擔警示 */}
                   <div className="mt-4 p-3 rounded-xl text-center">
+                    {netRentalIncome < 0 && (
+                      <div className="bg-red-500/20 border border-red-500/40 rounded-lg p-3 mb-3">
+                        <div className="text-red-400 font-bold text-lg">⚠️ 淨租金為負</div>
+                        <div className="text-red-300 text-sm mt-1">出租房屋的租金收入不足以支應該房貸還款</div>
+                      </div>
+                    )}
                     {salaryRatio > 50 ? (
                       <div className="bg-red-500/20 border border-red-500/40 rounded-lg p-3">
                         <div className="text-red-400 font-bold text-lg">⚠️ 還款負擔過重</div>
