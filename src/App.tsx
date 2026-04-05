@@ -828,7 +828,7 @@ export default function App() {
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
                       </div>
                       <div className="flex gap-2 mt-2">
-                        {[100000, 150000, 200000, 300000].map((s) => (
+                        {[20000, 30000, 50000, 70000].map((s) => (
                           <button
                             key={s}
                             onClick={() => setSecondSalary(s)}
@@ -838,7 +838,7 @@ export default function App() {
                                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
                             }`}
                           >
-                            {s >= 100000 ? `${s / 10000}萬` : s}
+                            {s >= 10000 ? `${s / 10000}萬` : s}
                           </button>
                         ))}
                       </div>
