@@ -828,7 +828,7 @@ export default function App() {
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
                       </div>
                       <div className="flex gap-2 mt-2">
-                        {[20000, 30000, 50000, 70000].map((s) => (
+                        {[20000, 30000, 40000, 50000].map((s) => (
                           <button
                             key={s}
                             onClick={() => setSecondSalary(s)}
