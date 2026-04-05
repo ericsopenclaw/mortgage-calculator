@@ -1078,8 +1078,96 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right: Timeline Chart */}
-              <div className="space-y-6">
+                  {/* 收支概覽（兩欄卡片） */}
+                  {(() => {
+                    const totalIncome = monthlySalary + secondSalary + monthlyRent
+                    const rentalMonthlyPayment = rentalProperty.remainingPrincipal > 0 && rentalProperty.remainingYears > 0 
+                      ? calculateRentalMortgage(rentalProperty.remainingPrincipal, rentalProperty.annualRate, rentalProperty.remainingYears)
+                      : 0
+                    const totalExpense = result.monthlyPayment + rentalMonthlyPayment
+                    const disposable = totalIncome - totalExpense
+                    const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome) * 100 : 0
+
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* 收入欄 */}
+                        <div className="bg-gradient-to-br from-green-900/40 to-green-800/20 rounded-2xl p-5 border border-green-500/30">
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="text-green-400 text-lg">💰</span>
+                            <h3 className="text-green-300 font-semibold">月收入</h3>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">月薪</span>
+                              <span className="text-green-400 font-medium">{formatNumber(monthlySalary)}</span>
+                            </div>
+                            {monthlyRent > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">租金淨收入</span>
+                                <span className="text-green-400 font-medium">{formatNumber(monthlyRent)}</span>
+                              </div>
+                            )}
+                            {secondSalary > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">第二人月薪</span>
+                                <span className="text-green-400 font-medium">{formatNumber(secondSalary)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between pt-2 border-t border-green-500/20">
+                              <span className="text-green-200 font-medium">總收入</span>
+                              <span className="text-green-300 font-bold">{formatNumber(totalIncome)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 支出欄 */}
+                        <div className="bg-gradient-to-br from-red-900/40 to-red-800/20 rounded-2xl p-5 border border-red-500/30">
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="text-red-400 text-lg">💸</span>
+                            <h3 className="text-red-300 font-semibold">月支出</h3>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">主房貸還款</span>
+                              <span className="text-red-400 font-medium">{formatNumber(result.monthlyPayment)}</span>
+                            </div>
+                            {rentalProperty.remainingPrincipal > 0 && rentalProperty.remainingYears > 0 && rentalMonthlyPayment > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">出租房還款</span>
+                                <span className="text-red-400 font-medium">{formatNumber(rentalMonthlyPayment)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between pt-2 border-t border-red-500/20">
+                              <span className="text-red-200 font-medium">總支出</span>
+                              <span className="text-red-300 font-bold">{formatNumber(totalExpense)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 底部摘要 */}
+                        <div className="col-span-2 bg-white/5 rounded-xl p-4 border border-white/10">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="text-gray-400 text-sm">可支配金額</span>
+                              <div className={`text-2xl font-bold ${disposable >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {formatNumber(Math.abs(disposable))}
+                                {disposable < 0 && <span className="text-sm ml-1">⚠️ 不足</span>}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-gray-400 text-sm">還款佔比</span>
+                              <div className={`text-2xl font-bold ${expenseRatio > 50 ? 'text-red-400' : expenseRatio > 30 ? 'text-yellow-400' : 'text-green-400'}`}>
+                                {expenseRatio.toFixed(1)}%
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                {/* Right: Timeline Chart */}
+                <div className="space-y-6">
                 {/* 圖表切換 */}
                 <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
                   <div className="flex justify-between items-center mb-4">
