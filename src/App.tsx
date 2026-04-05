@@ -409,6 +409,7 @@ export default function App() {
     remainingPrincipal: 0,
     remainingYears: 20
   })
+  const [newHouseManagementFee, setNewHouseManagementFee] = useState(0)
 
   const loanAmount = housePrice * 10000 * (loanPercent / 100)
   const result = calculateMortgage(loanAmount, annualRate, years, repaymentType, loanType, graceYears)
@@ -425,7 +426,7 @@ export default function App() {
     : 0
   const netRentalIncome = rentalProperty.rentIncome - rentalMonthlyPayment
   const totalIncome = monthlySalary + secondSalary + (netRentalIncome > 0 ? netRentalIncome : 0)
-  const disposableIncome = totalIncome - result.monthlyPayment
+  const disposableIncome = totalIncome - result.monthlyPayment - rentalMonthlyPayment - newHouseManagementFee
   const salaryRatio = totalIncome > 0 ? (result.monthlyPayment / totalIncome) * 100 : 0
   const paidAmount = loanAmount - (result.schedule[result.schedule.length - 1]?.balance || 0)
   const repaymentProgress = loanAmount > 0 ? paidAmount / loanAmount : 0
@@ -870,6 +871,35 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* 新房子管理費 */}
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">新房子管理費</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={newHouseManagementFee}
+                          onChange={(e) => setNewHouseManagementFee(Number(e.target.value))}
+                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-blue-400"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {[0, 3000, 5000, 10000].map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setNewHouseManagementFee(f)}
+                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
+                              newHouseManagementFee === f
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            }`}
+                          >
+                            {f === 0 ? '無' : f.toLocaleString()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* 出租房屋房貸資訊 */}
                     <div className="mt-6 pt-4 border-t border-white/20">
                       <h3 className="text-lg font-semibold mb-4 text-purple-300">🏠 出租房屋資訊</h3>
@@ -1084,7 +1114,7 @@ export default function App() {
                     const rentalMonthlyPayment = rentalProperty.remainingPrincipal > 0 && rentalProperty.remainingYears > 0 
                       ? calculateRentalMortgage(rentalProperty.remainingPrincipal, rentalProperty.annualRate, rentalProperty.remainingYears)
                       : 0
-                    const totalExpense = result.monthlyPayment + rentalMonthlyPayment
+                    const totalExpense = result.monthlyPayment + rentalMonthlyPayment + newHouseManagementFee
                     const disposable = totalIncome - totalExpense
                     const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome) * 100 : 0
 
@@ -1135,6 +1165,12 @@ export default function App() {
                               <div className="flex justify-between">
                                 <span className="text-gray-400">出租房還款</span>
                                 <span className="text-red-400 font-medium">{formatNumber(rentalMonthlyPayment)}</span>
+                              </div>
+                            )}
+                            {newHouseManagementFee > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">新房子管理費</span>
+                                <span className="text-red-400 font-medium">{formatNumber(newHouseManagementFee)}</span>
                               </div>
                             )}
                             <div className="flex justify-between pt-2 border-t border-red-500/20">
