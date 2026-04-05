@@ -113,6 +113,7 @@ function TimelineChart({
   monthlyPayment, 
   view, 
   monthlySalary,
+  monthlyRent,
   totalMonths,
   graceMonths,
   loanType 
@@ -121,6 +122,7 @@ function TimelineChart({
   monthlyPayment: number
   view: TimelineView
   monthlySalary: number
+  monthlyRent: number
   totalMonths: number
   graceMonths: number
   loanType: LoanType
@@ -135,7 +137,8 @@ function TimelineChart({
   const sampled = displaySchedule.filter((_, i) => i % step === 0 || i === displaySchedule.length - 1)
 
   if (view === 'salary-ratio') {
-    if (!monthlySalary) return null
+    const totalIncome = monthlySalary + monthlyRent
+    if (!totalIncome) return null
 
     return (
       <div className="w-full">
@@ -164,7 +167,7 @@ function TimelineChart({
             stroke="#fbbf24"
             strokeWidth="2"
             points={sampled.map((_, i) => {
-              const ratio = monthlyPayment / monthlySalary
+              const ratio = monthlyPayment / totalIncome
               const clampedRatio = Math.min(ratio, 1)
               return `${60 + (i / (sampled.length - 1)) * 720},${260 - clampedRatio * 200}`
             }).join(' ')}
@@ -190,7 +193,7 @@ function TimelineChart({
         <div className="flex items-center justify-center gap-6 mt-2 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-yellow-400"></div>
-            <span className="text-gray-300">還款/薪水比例</span>
+            <span className="text-gray-300">還款/收入比例</span>
           </div>
         </div>
       </div>
@@ -378,6 +381,7 @@ export default function App() {
   const [showSchedule, setShowSchedule] = useState(false)
   const [activeTab, setActiveTab] = useState<'calculator' | 'timeline'>('calculator')
   const [monthlySalary, setMonthlySalary] = useState(150000)
+  const [monthlyRent, setMonthlyRent] = useState(0)
   const [timelineView, setTimelineView] = useState<TimelineView>('principal-interest')
 
   const loanAmount = housePrice * 10000 * (loanPercent / 100)
@@ -389,7 +393,9 @@ export default function App() {
     ? result.monthlyPayment - firstMonthInterest 
     : loanAmount / (years * 12)
 
-  const salaryRatio = monthlySalary > 0 ? (result.monthlyPayment / monthlySalary) * 100 : 0
+  const totalIncome = monthlySalary + monthlyRent
+  const disposableIncome = totalIncome - result.monthlyPayment
+  const salaryRatio = totalIncome > 0 ? (result.monthlyPayment / totalIncome) * 100 : 0
   const paidAmount = loanAmount - (result.schedule[result.schedule.length - 1]?.balance || 0)
   const repaymentProgress = loanAmount > 0 ? paidAmount / loanAmount : 0
   const totalMonths = years * 12
@@ -746,32 +752,64 @@ export default function App() {
             <div className="grid lg:grid-cols-2 gap-8">
               {/* Left: Salary Input & Key Stats */}
               <div className="space-y-6">
-                {/* 月薪輸入 */}
+                {/* 月薪與租金輸入 */}
                 <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-xl font-semibold mb-4 text-yellow-300">💰 月薪輸入</h2>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={monthlySalary}
-                      onChange={(e) => setMonthlySalary(Number(e.target.value))}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-yellow-400"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    {[100000, 150000, 200000, 300000].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setMonthlySalary(s)}
-                        className={`flex-1 py-1.5 rounded text-sm transition-all ${
-                          monthlySalary === s
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                        }`}
-                      >
-                        {s >= 100000 ? `${s / 10000}萬` : s}
-                      </button>
-                    ))}
+                  <h2 className="text-xl font-semibold mb-4 text-yellow-300">💰 月薪與租金收入</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">月薪</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={monthlySalary}
+                          onChange={(e) => setMonthlySalary(Number(e.target.value))}
+                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-yellow-400"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {[100000, 150000, 200000, 300000].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setMonthlySalary(s)}
+                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
+                              monthlySalary === s
+                                ? 'bg-yellow-500 text-white'
+                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            }`}
+                          >
+                            {s >= 100000 ? `${s / 10000}萬` : s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">租金收入</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={monthlyRent}
+                          onChange={(e) => setMonthlyRent(Number(e.target.value))}
+                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-green-400"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">元/月</span>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {[0, 20000, 30000, 50000].map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => setMonthlyRent(r)}
+                            className={`flex-1 py-1.5 rounded text-sm transition-all ${
+                              monthlyRent === r
+                                ? 'bg-green-500 text-white'
+                                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            }`}
+                          >
+                            {r === 0 ? '無' : `${r / 10000}萬`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -794,13 +832,25 @@ export default function App() {
                       <span className="text-gray-300">月薪</span>
                       <span className="text-white font-medium">{formatCurrency(monthlySalary)}</span>
                     </div>
+                    {monthlyRent > 0 && (
+                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
+                        <span className="text-gray-300">租金收入</span>
+                        <span className="text-green-400 font-medium">+{formatCurrency(monthlyRent)}</span>
+                      </div>
+                    )}
+                    {monthlyRent > 0 && (
+                      <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg border border-green-500/30">
+                        <span className="text-gray-300">總收入</span>
+                        <span className="text-green-400 font-bold">{formatCurrency(totalIncome)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
                       <span className="text-gray-300">每月還款</span>
                       <span className="text-yellow-400 font-medium">{formatCurrency(result.monthlyPayment)}</span>
                     </div>
-                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg">
+                    <div className="flex justify-between items-center py-2 px-3 bg-white/5 rounded-lg border border-green-500/30">
                       <span className="text-gray-300">每月可支配</span>
-                      <span className="text-green-400 font-medium">{formatCurrency(monthlySalary - result.monthlyPayment)}</span>
+                      <span className="text-green-400 font-bold">{formatCurrency(disposableIncome)}</span>
                     </div>
                   </div>
 
@@ -902,6 +952,7 @@ export default function App() {
                     monthlyPayment={result.monthlyPayment}
                     view={timelineView}
                     monthlySalary={monthlySalary}
+                    monthlyRent={monthlyRent}
                     totalMonths={totalMonths}
                     graceMonths={graceMonths}
                     loanType={loanType}
